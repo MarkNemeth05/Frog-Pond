@@ -15,7 +15,6 @@
   <header class="topbar">
     <button id="hamburger" aria-label="Menu" class="hamburger">☰</button>
     <div class="brand">🐸&nbsp;Frog&nbsp;Pond</div>
-    <button id="profileBtn" aria-label="Profile" class="profile-btn">👤</button>
   </header>
 
   <!-- Drawer -->
@@ -138,109 +137,5 @@
 
   <!-- App JS -->
   <script src="main.js"></script>
-
-  <!-- Firebase (Plan A: redirect on Safari/iOS/PWA; popup elsewhere with fallback) -->
-  <script type="module">
-    // 1) PASTE YOUR REAL VALUES HERE
-    const firebaseConfig = {
-      apiKey: "AIzaSyCjjMOuFi_zMwYZDEM1lB3M_fqO5pZO2z4",
-      authDomain: "frog-pond-235ad.firebaseapp.com",
-      projectId: "frog-pond-235ad",
-      storageBucket: "frog-pond-235ad.firebasestorage.app",
-      messagingSenderId: "550724651848",
-      appId: "1:550724651848:web:8f853835a2fe19144c417d"
-    };
-
-    if (firebaseConfig.apiKey) {
-      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
-      const {
-        getAuth, onAuthStateChanged, GoogleAuthProvider,
-        signInWithPopup, signInWithRedirect, getRedirectResult,
-        signInAnonymously, signOut,
-        setPersistence, browserLocalPersistence, inMemoryPersistence
-      } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
-      const { getFirestore, doc, getDoc, setDoc }
-        = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-
-      const app = initializeApp(firebaseConfig);
-      const auth = getAuth(app);
-      const db   = getFirestore(app);
-
-      // Try local persistence; if it fails (Safari restrictions), fall back to in-memory
-      try { await setPersistence(auth, browserLocalPersistence); }
-      catch { await setPersistence(auth, inMemoryPersistence); }
-
-      // Detect environments where popups are unreliable → prefer redirect
-      const ua = navigator.userAgent || "";
-      const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|EdgiOS/.test(ua);
-      const isStandalone = (window.navigator.standalone === true) || window.matchMedia?.('(display-mode: standalone)').matches;
-      const preferRedirect = isIOS || isSafari || isStandalone;
-
-      // Complete any pending redirect, even if sessionStorage was cleared
-      try {
-        if (localStorage.getItem('fp_redirect') === '1') {
-          await getRedirectResult(auth);
-        }
-      } catch (e) {
-        console.warn('Redirect completion error:', e);
-      } finally {
-        localStorage.removeItem('fp_redirect');
-      }
-
-      // Minimal cloud facade consumed by main.js
-      window.Cloud = {
-        uid: null,
-        async save(state){
-          if (!this.uid) return;
-          await setDoc(doc(db,'pondStates', this.uid), { state, updatedAt: Date.now() });
-        },
-        async load(){
-          if (!this.uid) return null;
-          const snap = await getDoc(doc(db,'pondStates', this.uid));
-          return snap.exists() ? snap.data().state : null;
-        },
-        async signInGoogle(){
-          const provider = new GoogleAuthProvider();
-
-          // Prefer redirect on iOS/Safari/PWA
-          if (preferRedirect) {
-            localStorage.setItem('fp_redirect','1');
-            return signInWithRedirect(auth, provider);
-          }
-
-          // Else try popup; if blocked, fall back to redirect
-          try {
-            await signInWithPopup(auth, provider);
-          } catch (err) {
-            console.warn('Popup failed, using redirect:', err?.code || err);
-            localStorage.setItem('fp_redirect','1');
-            await signInWithRedirect(auth, provider);
-          }
-        },
-        async signInAnon(){ return signInAnonymously(auth); },
-        async signOut(){ return signOut(auth); },
-        onChange(cb){ onAuthStateChanged(auth, async (user)=>{ this.uid = user?.uid || null; cb(this.uid); }); }
-      };
-
-      // Lightweight Profile dialog (if you didn't add a custom one)
-      const pBtn = document.getElementById('profileBtn');
-      if (pBtn && !document.getElementById('profileDialog')) {
-        const d = document.createElement('dialog'); d.id='profileDialog';
-        d.innerHTML = `<h3 style="margin:0 0 10px">Profile</h3>
-          <p style="margin:0 0 12px;opacity:.8;">Sign in to sync your pond.</p>
-          <div class="modal-actions">
-            <button id="signGoogle" class="btn">Google</button>
-            <button id="signAnon" class="btn">Guest</button>
-            <button id="signOut" class="btn">Sign out</button>
-          </div>`;
-        document.body.appendChild(d);
-        pBtn.addEventListener('click', ()=> d.showModal());
-        d.querySelector('#signGoogle').onclick = ()=> window.Cloud.signInGoogle().then(()=>d.close());
-        d.querySelector('#signAnon').onclick   = ()=> window.Cloud.signInAnon().then(()=>d.close());
-        d.querySelector('#signOut').onclick    = ()=> window.Cloud.signOut().then(()=>d.close());
-      }
-    }
-  </script>
 </body>
 </html>

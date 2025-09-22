@@ -30,12 +30,10 @@ const state={
 const SPAWN_MS = 30*60*1000; // 30m per spawn
 let W=540, H=700;
 
-// Cloud sync (optional)
-function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
-const cloudSaveDebounced = debounce(()=> window.Cloud?.save?.(state), 800);
-
 // ----- UI helpers -----
-function save(){ localStorage.setItem(SKEY, JSON.stringify(state)); cloudSaveDebounced(); }
+function save(){
+  localStorage.setItem(SKEY, JSON.stringify(state));
+}
 function load(){ try{ const raw=localStorage.getItem(SKEY); if(raw) Object.assign(state, JSON.parse(raw)); }catch(e){} }
 function mmss(s){ s=Math.max(0,s|0); const m=(s/60|0), n=s%60; return `${String(m).padStart(2,'0')}:${String(n).padStart(2,'0')}`; }
 function show(id){ document.querySelectorAll('.view').forEach(v=>v.classList.toggle('visible', v.id===id)); if(id==='pond') requestPaint(); if(id==='history') renderHistory(); if(id==='todo') renderTodos(); if(id==='biggest') renderBiggest(); }
@@ -285,14 +283,5 @@ function restoreUI(){
   if(state.podOpen && state.podCount>0){ podCountEl.textContent=state.podCount; try{ podModal.showModal(); }catch{} }
 }
 Promise.all([loadImages(TIER_FILES)]).then(()=>{ restoreUI(); show('timer-setup'); });
-
-// Cloud: pull latest when signed in
-window.Cloud?.onChange?.(async (uid)=>{
-  const cloudState = await window.Cloud.load();
-  if (cloudState){
-    Object.assign(state, cloudState);
-    save(); restoreUI();
-  }
-});
 
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && document.getElementById('timer-run').classList.contains('visible')) tick(); });
