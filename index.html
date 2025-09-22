@@ -166,11 +166,13 @@
     // Persist across reloads / redirects
     await setPersistence(auth, browserLocalPersistence);
 
-    // Detect Safari / iOS PWA → prefer redirect
+    // Detect environments where popups are unreliable → use redirect
     const ua = navigator.userAgent || "";
-    const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|EdgiOS/.test(ua);
+    const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|EdgiOS/.test(ua); // true for iOS Safari
     const isStandalone = (window.navigator.standalone === true) || window.matchMedia?.('(display-mode: standalone)').matches;
-    const useRedirect = isSafari || isStandalone;
+    // Prefer redirect on: iOS (any browser), Safari, or standalone PWA
+    const preferRedirect = isIOS || isSafari || isStandalone;
 
     // Complete any pending redirect
     try {
@@ -197,13 +199,23 @@
       },
       async signInGoogle(){
         const provider = new GoogleAuthProvider();
-        if (useRedirect) {
-          localStorage.setItem('fp_redirect','1');      // survive sessionStorage wipe
-          await signInWithRedirect(auth, provider);
-        } else {
+
+        // Always use redirect where popups are flaky
+        if (preferRedirect) {
+          localStorage.setItem('fp_redirect','1');
+          return signInWithRedirect(auth, provider);
+        }
+
+        // Else try popup; if blocked/fails, fall back to redirect
+        try {
           await signInWithPopup(auth, provider);
+        } catch (err) {
+          console.warn('Popup failed, falling back to redirect:', err?.code || err);
+          localStorage.setItem('fp_redirect','1');
+          await signInWithRedirect(auth, provider);
         }
       },
+
       async signInAnon(){ return signInAnonymously(auth); },
       async signOut(){ return signOut(auth); },
       onChange(cb){ onAuthStateChanged(auth, async (user)=>{ this.uid = user?.uid || null; cb(this.uid); }); }
