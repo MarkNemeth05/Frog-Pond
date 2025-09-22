@@ -55,32 +55,29 @@ dialog{ border:none; border-radius:14px; padding:16px; max-width:520px; }
 .dial-arc{ fill:none; stroke:var(--green); stroke-linecap:round; stroke-width:14; transform:rotate(-90deg); transform-origin:120px 120px; stroke-dasharray:565; stroke-dashoffset:0; }
 .dial-knob{ fill:#fff; stroke:var(--green); stroke-width:4; cursor:pointer; }
 
-/* pond (full-bleed cardless) */
+/* pond */
 .pond-wrap{ position: relative; }
-
 #pondCanvas{
   width:100%;
-    display:block;                 /* no baseline gap */
-      background:url('assets/frogs/Background.png') center 70% / cover no-repeat;
-        border:none;
-          border-radius:16px;            /* rounded pond */
-            overflow:hidden;               /* clip content to radius */
-            }
-
-            /* pinned corner HUD */
-            .pond-hud{
-              position: absolute !important;
-                inset: 12px 12px auto auto;    /* top-right */
-                  left: auto !important;
-                    right: 12px !important;
-                      transform: none !important;    /* cancel any old centering */
-                        background: rgba(255,255,255,.85);
-                          border: 1px solid var(--soft);
-                            border-radius: 999px;
-                              padding: 6px 10px;
-                                font-size: 14px;
-                                  display: flex; align-items: center; gap: 6px;
-                                    backdrop-filter: blur(4px);
-                                    }
-                                    .pond-hud input{ accent-color: var(--green); }
-                                    
+  display:block;
+  background:url('assets/frogs/Background.png') center 70% / cover no-repeat;
+  border:none;
+  border-radius:16px;
+  overflow:hidden;
+}
+/* pinned corner HUD */
+.pond-hud{
+  position: absolute !important;
+  inset: 12px 12px auto auto; /* top-right */
+  left: auto !important;
+  right: 12px !important;
+  transform: none !important;
+  background: rgba(255,255,255,.85);
+  border: 1px solid var(--soft);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 14px;
+  display: flex; align-items: center; gap: 6px;
+  backdrop-filter: blur(4px);
+}
+.pond-hud input{ accent-color: var(--green); }

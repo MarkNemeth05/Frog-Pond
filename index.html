@@ -4,14 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Frog Pond</title>
-  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2f6f4e">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="styles.css">
-  <link rel="icon" type="image/png" href="icons/frog-32.png">      <!-- tab icon -->
-  <link rel="apple-touch-icon" href="icons/icon-192.png">          <!-- iOS icon -->
-  <link rel="manifest" href="manifest.json">
-
 </head>
 <body>
   <header class="topbar">
@@ -27,6 +24,7 @@
       <button class="drawer-item" data-view="history">History</button>
       <button class="drawer-item" data-view="todo">To-Do</button>
       <button class="drawer-item" data-view="biggest">Biggest</button>
+      <button class="drawer-item" id="profileBtn">Profile</button>
     </nav>
   </aside>
   <div id="scrim" class="scrim"></div>
@@ -45,7 +43,6 @@
             preserveAspectRatio="xMidYMid meet"
             clip-path="url(#frogClip)"
             transform="translate(120,120) scale(1.18) translate(-120,-120) translate(0,-6)"/>
-
           <circle id="dialKnob" cx="120" cy="30" r="10" class="dial-knob"/>
         </svg>
 
@@ -80,7 +77,18 @@
       </div>
     </dialog>
 
-    <!-- POND (full-bleed) -->
+    <!-- Galaxy celebration -->
+    <dialog id="galaxyModal">
+      <img id="galaxyPreview" src="assets/frogs/GalaxyFrog.png" alt="" style="width:140px;height:140px;object-fit:contain;display:block;margin:0 auto 8px;">
+      <h3 style="text-align:center;margin:0 0 6px;">The greatest frog ever existed</h3>
+      <p style="text-align:center;margin:0 0 14px;opacity:.8;">Hail before the Galaxy Frogs.</p>
+      <p id="galaxyMinutes" style="text-align:center;margin:0 0 14px;opacity:.7;"></p>
+      <div class="modal-actions" style="justify-content:center;">
+        <button id="galaxyOk" class="btn primary">Nice</button>
+      </div>
+    </dialog>
+
+    <!-- POND -->
     <section id="pond" class="view">
       <div class="pond-wrap">
         <label class="pond-hud">
@@ -117,7 +125,7 @@
     </section>
   </main>
 
-  <!-- Confirm dialog (Safari-safe) -->
+  <!-- Confirm dialog -->
   <dialog id="confirmDialog">
     <h3 id="confirmTitle" style="margin:0 0 8px">Confirm</h3>
     <p id="confirmMsg" style="margin:0 0 12px">Are you sure?</p>
@@ -128,5 +136,55 @@
   </dialog>
 
   <script src="main.js"></script>
+
+  <!-- Firebase (optional cloud sync). Fill config to enable. -->
+  <script type="module">
+    // --- Fill your Firebase credentials to enable sync ---
+     const firebaseConfig = {
+      apiKey: "AIzaSyCjjMOuFi_zMwYZDEM1lB3M_fqO5pZO2z4",
+      authDomain: "frog-pond-235ad.firebaseapp.com",
+      projectId: "frog-pond-235ad",
+      storageBucket: "frog-pond-235ad.firebasestorage.app",
+      messagingSenderId: "550724651848",
+      appId: "1:550724651848:web:8f853835a2fe19144c417d"
+    };
+    if (firebaseConfig.apiKey) {
+      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+      const { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut }
+        = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+      const { getFirestore, doc, getDoc, setDoc }
+        = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db   = getFirestore(app);
+
+      window.Cloud = {
+        uid: null,
+        async save(state){ if (!this.uid) return; await setDoc(doc(db,'pondStates', this.uid), { state, updatedAt: Date.now() }); },
+        async load(){ if (!this.uid) return null; const s = await getDoc(doc(db,'pondStates', this.uid)); return s.exists() ? s.data().state : null; },
+        signInGoogle: ()=> signInWithPopup(auth, new GoogleAuthProvider()),
+        signInAnon:   ()=> signInAnonymously(auth),
+        signOut:      ()=> signOut(auth),
+        onChange(cb){ onAuthStateChanged(auth, async (user)=>{ this.uid = user?.uid || null; cb(this.uid); }); }
+      };
+
+      const pDlg = document.getElementById('profileDialog') || (()=> {
+        const d = document.createElement('dialog'); d.id='profileDialog';
+        d.innerHTML = `<h3 style="margin:0 0 10px">Profile</h3>
+          <p id="profileStatus" style="margin:0 0 12px;opacity:.8;">Sign in to sync.</p>
+          <div class="modal-actions">
+            <button id="signGoogle" class="btn">Google</button>
+            <button id="signAnon" class="btn">Guest</button>
+            <button id="signOut" class="btn">Sign out</button>
+          </div>`;
+        document.body.appendChild(d); return d;
+      })();
+      document.getElementById('profileBtn')?.addEventListener('click', ()=> pDlg.showModal());
+      pDlg.querySelector('#signGoogle').onclick = ()=> window.Cloud.signInGoogle().then(()=>pDlg.close());
+      pDlg.querySelector('#signAnon').onclick   = ()=> window.Cloud.signInAnon().then(()=>pDlg.close());
+      pDlg.querySelector('#signOut').onclick    = ()=> window.Cloud.signOut().then(()=>pDlg.close());
+    }
+  </script>
 </body>
 </html>

@@ -10,7 +10,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ----- State -----
-const SKEY='frogpond_state_v1';
+const SKEY='frogpond_state_v2';
 const state={
   timerTitle:'Study',
   timerTargetSec:25*60,
@@ -23,14 +23,19 @@ const state={
   history:[],
   todos:[],
   frogs:[],
-  unlockedMax:1
+  unlockedMax:1,
+  seenGalaxyModal:false
 };
 
-const SPAWN_MS = 30*60*1000; // spawn every 30 min
+const SPAWN_MS = 30*60*1000; // 30m per spawn
 let W=540, H=700;
 
+// Cloud sync (optional)
+function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+const cloudSaveDebounced = debounce(()=> window.Cloud?.save?.(state), 800);
+
 // ----- UI helpers -----
-function save(){ localStorage.setItem(SKEY, JSON.stringify(state)); }
+function save(){ localStorage.setItem(SKEY, JSON.stringify(state)); cloudSaveDebounced(); }
 function load(){ try{ const raw=localStorage.getItem(SKEY); if(raw) Object.assign(state, JSON.parse(raw)); }catch(e){} }
 function mmss(s){ s=Math.max(0,s|0); const m=(s/60|0), n=s%60; return `${String(m).padStart(2,'0')}:${String(n).padStart(2,'0')}`; }
 function show(id){ document.querySelectorAll('.view').forEach(v=>v.classList.toggle('visible', v.id===id)); if(id==='pond') requestPaint(); if(id==='history') renderHistory(); if(id==='todo') renderTodos(); if(id==='biggest') renderBiggest(); }
@@ -51,15 +56,22 @@ const dial=document.getElementById('dial');
 const dialArc=document.getElementById('dialArc');
 const dialKnob=document.getElementById('dialKnob');
 const R=90, PERIM=2*Math.PI*R;
+
 function minutesToAngle(min){ return (min/120)*360; }
 function angleToMinutes(a){ return Math.max(1, Math.min(120, Math.round((a%360)/3))); }
+
+let lastDialMin = Math.round(state.timerTargetSec/60);
+
 function setDialFromMinutes(min){
   const a=minutesToAngle(min), rad=(a-90)*Math.PI/180;
   dialKnob.setAttribute('cx', 120 + R*Math.cos(rad));
   dialKnob.setAttribute('cy', 120 + R*Math.sin(rad));
   dialArc.style.strokeDasharray=PERIM;
   dialArc.style.strokeDashoffset=PERIM - (PERIM*(min/120));
-  state.timerTargetSec=min*60; timerPreview.textContent=mmss(state.timerTargetSec); save();
+  state.timerTargetSec=min*60;                 // minutes → seconds
+  timerPreview.textContent=mmss(state.timerTargetSec);
+  lastDialMin = min;
+  save();
 }
 function pointAngle(x,y){ const dx=x-120, dy=y-120; let ang=Math.atan2(dy,dx)*180/Math.PI+90; if(ang<0) ang+=360; return ang; }
 let dragging=false;
@@ -68,7 +80,13 @@ function dialPointer(e){
   const px=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
   const py=(e.touches?e.touches[0].clientY:e.clientY)-r.top;
   const ang=pointAngle(px*(240/r.width), py*(240/r.height));
-  setDialFromMinutes(angleToMinutes(ang));
+  let cand = angleToMinutes(ang);
+  // clamp seam so it won't wrap 120↔1 while dragging
+  if (dragging){
+    if (lastDialMin >= 115 && cand <= 5) cand = 120;
+    else if (lastDialMin <= 5 && cand >= 115) cand = 1;
+  }
+  setDialFromMinutes(cand);
 }
 dial.addEventListener('pointerdown',e=>{ dragging=true; dial.setPointerCapture(e.pointerId); dialPointer(e); });
 dial.addEventListener('pointermove', e=>{ if(dragging) dialPointer(e); });
@@ -93,7 +111,9 @@ const releaseManualBtn=document.getElementById('releaseManualBtn'), releaseAutoB
 
 function computePretendSpawnCount(){ if(!state.timerStartEpoch) return state.pretendSpawnCount; return Math.floor((Date.now()-state.timerStartEpoch)/SPAWN_MS); }
 function finishTimer(finalSeconds){
-  state.podCount=computePretendSpawnCount(); state.podOpen=true;
+  // freeze pod count by timer duration
+  state.podCount = Math.floor((finalSeconds * 1000) / SPAWN_MS);
+  state.podOpen=true;
   state.history.unshift({title:state.timerTitle||'Study', seconds:finalSeconds, endedAt:Date.now()});
   state.timerStartEpoch=null; state.pretendSpawnCount=0; stopMusic(); save();
   podCountEl.textContent=state.podCount; try{ podModal.showModal(); }catch{}; show('pond');
@@ -133,9 +153,9 @@ function resizeCanvas(){
 resizeCanvas(); window.addEventListener('resize', resizeCanvas);
 
 let selectedId=null, animReq=null;
-const TIER_NAMES={1:'Baby Frog',2:'Emo Teen Frog',3:'Smart Frog',4:'Business Frog',5:'Rich Frog',6:'Fit Frog',7:'Old Frog',8:'Angel Frog',9:'Galaxy Frog'};
+const TIER_NAMES={1:'Baby Frog',2:'Emo Teen Frog',3:'Smart Frog',4:'Business Frog',5:'Rich Frog',6:'Fit Frog',7:'Old Frog',8:'God Frog',9:'Galaxy Frog'};
 const MAX_TIER=9;
-const TIER_FILES={1:'assets/frogs/BabyFrog.png',2:'assets/frogs/TeenFrog.png',3:'assets/frogs/SmartFrog.png',4:'assets/frogs/BusinessFrog.png',5:'assets/frogs/RichFrog.png',6:'assets/frogs/FitFrog.png',7:'assets/frogs/OldFrog.png',8:'assets/frogs/AngelFrog.png',9:'assets/frogs/GalaxyFrog.png'};
+const TIER_FILES={1:'assets/frogs/BabyFrog.png',2:'assets/frogs/TeenFrog.png',3:'assets/frogs/SmartFrog.png',4:'assets/frogs/BusinessFrog.png',5:'assets/frogs/RichFrog.png',6:'assets/frogs/FitFrog.png',7:'assets/frogs/OldFrog.png',8:'assets/frogs/GodFrog.png',9:'assets/frogs/GalaxyFrog.png'};
 const FROG_IMG={}; function loadImages(m){ return Promise.all(Object.entries(m).map(([k,src])=>new Promise(r=>{ const i=new Image(); i.onload=()=>{FROG_IMG[k]=i;r();}; i.onerror=()=>r(); i.src=src; }))); }
 function random(a,b){ return Math.random()*(b-a)+a; }
 function addFrog(tier,x,y){
@@ -146,23 +166,41 @@ function spawnBatch(n){ const cx=W/2, cy=H/2+40, R=Math.min(W,H)*0.3; for(let i=
 
 // merge system
 const MERGE_SPEED=140, MERGE_RADIUS=6; let mergePairs=[], pendingMerges=[]; const reserved=new Set();
-function scheduleMerge(a,b){ if(reserved.has(a.id)||reserved.has(b.id)) return; reserved.add(a.id); reserved.add(b.id); pendingMerges.push({aId:a.id,bId:b.id,due:performance.now()+2000}); }
-function beginMerge(a,b){ const mx=(a.x+b.x)/2, my=(a.y+b.y)/2; a.merging=b.merging=true; a.tx=mx; a.ty=my; b.tx=mx; b.ty=my; mergePairs.push({aId:a.id,bId:b.id,mx,my}); }
+function scheduleMerge(a,b){ if(reserved.has(a.id)||reserved.has(b.id)) return; if (a.tier>=MAX_TIER) return; reserved.add(a.id); reserved.add(b.id); pendingMerges.push({aId:a.id,bId:b.id,due:performance.now()+2000}); }
+function beginMerge(a,b){ if(a.tier>=MAX_TIER) return; const mx=(a.x+b.x)/2, my=(a.y+b.y)/2; a.merging=b.merging=true; a.tx=mx; a.ty=my; b.tx=mx; b.ty=my; mergePairs.push({aId:a.id,bId:b.id,mx,my}); }
 
 function updateFrogs(dt){
   // start queued (auto) merges
-  if(pendingMerges.length){ const now=performance.now(); for(let i=pendingMerges.length-1;i>=0;i--){ const p=pendingMerges[i]; if(now<p.due) continue; const a=state.frogs.find(f=>f.id===p.aId), b=state.frogs.find(f=>f.id===p.bId); reserved.delete(p.aId); reserved.delete(p.bId); pendingMerges.splice(i,1); if(a&&b&&!a.merging&&!b.merging&&a.tier===b.tier) beginMerge(a,b); } }
+  if(pendingMerges.length){ const now=performance.now(); for(let i=pendingMerges.length-1;i>=0;i--){ const p=pendingMerges[i]; if(now<p.due) continue; const a=state.frogs.find(f=>f.id===p.aId), b=state.frogs.find(f=>f.id===p.bId);
+      reserved.delete(p.aId); reserved.delete(p.bId); pendingMerges.splice(i,1);
+      if(a&&b&&!a.merging&&!b.merging&&a.tier===b.tier && a.tier<MAX_TIER) beginMerge(a,b); } }
   for(const f of state.frogs){
     f.phase+=f.hopSpeed*dt; const yb=Math.sin(f.phase*2*Math.PI)*f.hopAmp; let cx=f.x, cy=f.y;
     if(f.merging){ const dx=f.tx-cx, dy=f.ty-cy, d=Math.hypot(dx,dy); if(d>0.1){ const sp=MERGE_SPEED*dt; const nx=dx/d, ny=dy/d; cx+=Math.min(sp,d)*nx; cy+=Math.min(sp,d)*ny; } }
     else{ cx+=f.vx*dt; cy+=f.vy*dt; const m=40, top=40; if(cx<m||cx>W-m) f.vx*=-1, cx=Math.max(m,Math.min(W-m,cx)); if(cy<top||cy>H-m) f.vy*=-1, cy=Math.max(top,Math.min(H-m,cy)); }
     f.x=cx; f.y=cy+yb;
   }
-  for(let i=mergePairs.length-1;i>=0;i--){ const p=mergePairs[i]; const a=state.frogs.find(f=>f.id===p.aId), b=state.frogs.find(f=>f.id===p.bId); if(!a||!b){ mergePairs.splice(i,1); continue; } const da=Math.hypot(a.x-p.mx,a.y-p.my), db=Math.hypot(b.x-p.mx,b.y-p.my); if(da<=MERGE_RADIUS && db<=MERGE_RADIUS){ const tier=Math.min(MAX_TIER,a.tier+1); state.frogs=state.frogs.filter(f=>f.id!==a.id && f.id!==b.id); addFrog(tier,p.mx,p.my); state.unlockedMax=Math.max(state.unlockedMax,tier); mergePairs.splice(i,1); save(); renderBiggest(); if(state.autoMerge) autoMergeSweep(); } }
+  for(let i=mergePairs.length-1;i>=0;i--){
+    const p=mergePairs[i]; const a=state.frogs.find(f=>f.id===p.aId), b=state.frogs.find(f=>f.id===p.bId);
+    if(!a||!b){ mergePairs.splice(i,1); continue; }
+    const da=Math.hypot(a.x-p.mx,a.y-p.my), db=Math.hypot(b.x-p.mx,b.y-p.my);
+    if(da<=MERGE_RADIUS && db<=MERGE_RADIUS){
+      const newTier = Math.min(MAX_TIER, a.tier + 1);
+      state.frogs = state.frogs.filter(f=>f.id!==a.id && f.id!==b.id);
+      addFrog(newTier, p.mx, p.my);
+      state.unlockedMax = Math.max(state.unlockedMax, newTier);
+      if (newTier === MAX_TIER && !state.seenGalaxyModal){ state.seenGalaxyModal=true; save(); showGalaxyModal(); }
+      mergePairs.splice(i,1);
+      save(); renderBiggest();
+      if(state.autoMerge) autoMergeSweep();
+    }
+  }
 }
+
 function drawFrogs(){ ctx.clearRect(0,0,W,H); for(const f of state.frogs){ const img=FROG_IMG[f.tier]; const size=Math.max(40, Math.min(W,H)*0.09)+f.tier*2; const r=size/2; if(img) ctx.drawImage(img, f.x-r, f.y-r, size, size); else{ ctx.beginPath(); ctx.arc(f.x,f.y,r,0,Math.PI*2); ctx.fillStyle=`hsl(${(f.tier*35)%360} 60% 60%)`; ctx.fill(); } } }
 function requestPaint(){ if(animReq) return; let last=performance.now(); const loop=(t)=>{ const dt=Math.min(0.05,(t-last)/1000); last=t; updateFrogs(dt); drawFrogs(); animReq=requestAnimationFrame(loop); if(!document.getElementById('pond').classList.contains('visible')){ cancelAnimationFrame(animReq); animReq=null; } }; animReq=requestAnimationFrame(loop); }
 
+// click (manual merge), block Galaxy merges
 canvas.addEventListener('click',ev=>{
   const r=canvas.getBoundingClientRect(), pxr=window.devicePixelRatio||1;
   const sx=(canvas.width/pxr)/r.width, sy=(canvas.height/pxr)/r.height;
@@ -173,7 +211,7 @@ canvas.addEventListener('click',ev=>{
   if(selectedId===null){ selectedId=hit.id; return; }
   if(selectedId===hit.id){ selectedId=null; return; }
   const a=state.frogs.find(f=>f.id===selectedId), b=hit;
-  if(a&&b&&a.tier===b.tier&&!a.merging&&!b.merging){
+  if(a&&b&&a.tier===b.tier&&a.tier<MAX_TIER&&!a.merging&&!b.merging){
     for(let i=pendingMerges.length-1;i>=0;i--){ const p=pendingMerges[i]; if(p.aId===a.id||p.bId===a.id||p.aId===b.id||p.bId===b.id) pendingMerges.splice(i,1); }
     reserved.delete(a.id); reserved.delete(b.id);
     beginMerge(a,b); // instant on manual
@@ -182,12 +220,21 @@ canvas.addEventListener('click',ev=>{
 });
 
 document.getElementById('autoMergeToggle').addEventListener('change',e=>{ state.autoMerge=e.target.checked; save(); autoMergeSweep(); });
-function autoMergeSweep(){ if(!state.autoMerge) return; const buckets={}; for(const f of state.frogs){ if(!f.merging && !reserved.has(f.id)) (buckets[f.tier]??=[]).push(f); } for(const k in buckets){ const L=buckets[k]; for(let i=0;i+1<L.length;i+=2) scheduleMerge(L[i],L[i+1]); } }
+function autoMergeSweep(){ if(!state.autoMerge) return; const buckets={}; for(const f of state.frogs){ if(!f.merging && !reserved.has(f.id) && f.tier<MAX_TIER) (buckets[f.tier]??=[]).push(f); } for(const k in buckets){ const L=buckets[k]; for(let i=0;i+1<L.length;i+=2) scheduleMerge(L[i],L[i+1]); } }
 
 // Pod
 function closePod(){ try{ podModal.close(); }catch{} }
 releaseManualBtn.addEventListener('click',()=>{ spawnBatch(state.podCount); state.podOpen=false; state.podCount=0; save(); closePod(); });
 releaseAutoBtn.addEventListener('click',()=>{ spawnBatch(state.podCount); state.podOpen=false; state.podCount=0; state.autoMerge=true; document.getElementById('autoMergeToggle').checked=true; save(); closePod(); autoMergeSweep(); });
+
+// Galaxy modal
+function totalFocusedMinutes(){ return Math.round((state.history?.reduce((s,h)=>s+(h.seconds||0),0) || 0) / 60); }
+function showGalaxyModal(){
+  const dlg = document.getElementById('galaxyModal');
+  document.getElementById('galaxyMinutes').textContent = `You were focused for ${totalFocusedMinutes()} minutes to receive the Galaxy Frog.`;
+  document.getElementById('galaxyOk').onclick = ()=>{ try{ dlg.close(); }catch{} };
+  try{ dlg.showModal(); }catch{}
+}
 
 // ----- History (with confirm) -----
 const historyList=document.getElementById('historyList');
@@ -238,4 +285,14 @@ function restoreUI(){
   if(state.podOpen && state.podCount>0){ podCountEl.textContent=state.podCount; try{ podModal.showModal(); }catch{} }
 }
 Promise.all([loadImages(TIER_FILES)]).then(()=>{ restoreUI(); show('timer-setup'); });
+
+// Cloud: pull latest when signed in
+window.Cloud?.onChange?.(async (uid)=>{
+  const cloudState = await window.Cloud.load();
+  if (cloudState){
+    Object.assign(state, cloudState);
+    save(); restoreUI();
+  }
+});
+
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && document.getElementById('timer-run').classList.contains('visible')) tick(); });
